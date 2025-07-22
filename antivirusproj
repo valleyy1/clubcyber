@@ -1,0 +1,66 @@
+import os
+from http.client import responses
+import requests
+import time  #to count time
+import configparser
+
+config = configparser.ConfigParser()
+files_read = config.read('config.ini')
+
+virus_total_api_key = config['api']['virus_total_api_key']
+virus_total_api_url = config['api']['virus_total_api_url']
+virus_total_api_get_report_url = config['api']['virus_total_api_get_report_url']
+
+infected_files = []  #list to save infected files
+
+def scan_file(file_path):
+    scan_id = upload_file(file_path)
+    is_virus = get_report(scan_id)
+    if is_virus:
+        print('VIRUS IS DETECTED, CHECK IT OUT, QUICK!!!!!', file_path)
+        infected_files.append(file_path)  #saving infected file
+    else:
+        print('no VIRUS is detected, you are all good!<3')
+    return is_virus
+
+def get_report(scan_id):
+    params = {'apikey': virus_total_api_key, 'resource': scan_id}
+    response = requests.get(virus_total_api_get_report_url, params=params)
+    if response.status_code == 200:
+        result = response.json()
+        if 'positives' in result:
+            return result['positives'] > 0
+        else:
+            return False
+    else:
+        return False
+
+def upload_file(file_path):
+    print(f"Scanning file: {file_path}")
+    params = {'apikey': virus_total_api_key}
+    files = {'file': (file_path, open(file_path, 'rb'))}
+    response = requests.post(virus_total_api_url, files=files, params=params)  # sends the post request
+    response = response.json()
+    return response["scan_id"]
+
+def scan_folder_files(folder_path):
+    start_time = time.time()  #statring to count the time
+    for item in os.listdir(folder_path):
+        full_path = os.path.join(folder_path, item)
+
+        if os.path.isfile(full_path):
+            scan_file(full_path)
+
+        elif os.path.isdir(full_path):
+            scan_folder_files(full_path)
+
+    end_time = time.time()  #ending the count time
+    duration = round(end_time - start_time, 2)
+    print(f"\nScan completed in {duration} seconds.")
+    print(f"Total infected files: {len(infected_files)}")
+    if infected_files:
+        print("Infected file list:")
+        for f in infected_files:
+            print(" -", f)
+
+scan_folder_files(r"c:\antiviruscheck")
